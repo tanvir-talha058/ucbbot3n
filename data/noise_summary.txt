@@ -1,0 +1,136 @@
+======================================================================
+NOISE CHUNK ANALYSIS REPORT
+======================================================================
+Total chunks scanned : 470
+Noise chunks found   : 263
+Clean chunks         : 207
+Noise percentage     : 56.0%
+
+BY CATEGORY:
+  Category                       Count
+  ----------------------------------------
+  PERSON_PROFILE                    63
+  ATM_LOCATOR                       46
+  PRESS_RELEASE                     45
+  FINANCIAL_LITERACY                31
+  TERMINATED_AGENTS                 23
+  CREDIT_CARD_TC                    17
+  INVESTOR_RELATIONS                11
+  REWARD_TC                          9
+  NEWS_MEDIA                         7
+  CITIZEN_CHARTER                    4
+  RIGHT_OF_INFO                      2
+  TOO_SHORT                          2
+  SUDHACHAR                          1
+  AUCTION_NOTICE                     1
+  CAREER                             1
+
+SAMPLE NOISE CHUNKS (first 2 per category):
+
+  [NEWS_MEDIA]
+  URL   : https://www.ucb.com.bd/news-and-events/downloads
+  Text  : Downloads News & Events Press Release Downloads Newsletter Note Identification Account Account Opening Form Personal Download Term Deposit/Savings Sch...
+
+  [ATM_LOCATOR]
+  URL   : https://www.ucb.com.bd/atm-locator
+  Text  : A. K. Khan Road ATM 989/B, Firoz Shah Colony, Zakir Hossain Road, Chattogram [Geo Location] ATM Adabor Shahabuddin Tower ATM Adabor Shahabuddin Tower,...
+
+  [ATM_LOCATOR]
+  URL   : https://www.ucb.com.bd/atm-locator
+  Text  : (Unit-2) MAA Market, Shabmohsen Aulia Road, Karnaphuli, Chattogram [Geo Location] ATM Anowara Malgor Bazar CRM M Alam Building, Malgor Bazar Road, Ano...
+
+  [NEWS_MEDIA]
+  URL   : https://www.ucb.com.bd/news-and-events/newsletter
+  Text  : Newsletter News & Events Press Release Downloads Newsletter Note Identification SL Description View 04 সাফল্য সংকলন (সংখ্যা- ০৪ | ডিসেম্বর ২০২৫ ) 03 স...
+
+  [SUDHACHAR]
+  URL   : https://www.ucb.com.bd/sudhachar
+  Text  : Description View all সেবা সংক্রান্ত টোল ফ্রি নম্বরসমূহ জাতীয় শুদ্ধাচার কর্ম পরিকল্পনা, ২০২৩-২০২৪ জাতীয় শুদ্ধাচার কর্ম পরিকল্পনা, ২০২২-২০২৩ জাতীয় শু...
+
+  [CITIZEN_CHARTER]
+  URL   : https://www.ucb.com.bd/CitizenCharter/vision-mission
+  Text  : প্রতিশ্রুত সেবা না পেলে প্রত্যাশীদের করণীয় রূপকল্প : আর্থিক পরিষেবা এবং সমাধানের মাধ্যমে আমাদের গ্রাহকদের সম্পদ তৈরি, পরিচালনা এবং বৃদ্ধির পাশাপাশি স...
+
+  [CITIZEN_CHARTER]
+  URL   : https://www.ucb.com.bd/CitizenCharter/grs
+  Text  : Citizen Charter সেবা প্রত্যাশীগণের করণীয় Products & Services ভিশন ও মিশন প্রতিশ্রুত সেবাসমূহ সেবা প্রত্যাশীগণের করণীয় প্রতিশ্রুত সেবা না পেলে প্রত্য...
+
+  [INVESTOR_RELATIONS]
+  URL   : https://www.ucb.com.bd/know-ucb/investor-relations/details-of-shareholding
+  Text  : Investor Relations Details of Shareholding Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Report A...
+
+  [INVESTOR_RELATIONS]
+  URL   : https://www.ucb.com.bd/know-ucb/investor-relations/notice-to-shareholders
+  Text  : 1. Proxy Form of 42nd Annual General Meeting 2. Notice of the 42nd Annual General Meeting 3. Proxy Form of 41st Annual General Meeting 4. Notice of th...
+
+  [RIGHT_OF_INFO]
+  URL   : https://www.ucb.com.bd/know-ucb/right-of-info/code-of-conduct-ethics
+  Text  : Know UCB CODE OF CONDUCT & ETHICS Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Code of Conduct &...
+
+  [RIGHT_OF_INFO]
+  URL   : https://www.ucb.com.bd/know-ucb/right-of-info/representative-of-right-of-information
+  Text  : Know UCB REPRESENTATIVE OF RIGHT OF INFORMATION Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Cod...
+
+  [CREDIT_CARD_TC]
+  URL   : https://www.ucb.com.bd/cards/terms-and-conditions
+  Text  : IMPORTANT! Before YOU use YOUR UCB credit card, please read this Agreement carefully. By using (which includes activating) YOUR UCB credit card, YOU a...
+
+  [CREDIT_CARD_TC]
+  URL   : https://www.ucb.com.bd/cards/terms-and-conditions
+  Text  : the use of the Card or PIN for all Card Transactions, interests, fees, additional expenses, damages, legal costs and disbursements, and other non-refu...
+
+  [REWARD_TC]
+  URL   : https://www.ucb.com.bd/cards/reward-program-and-partners
+  Text  : Currently there is no partner available. Currently there is no partner available. Sports World Rewards Value Reward Points 3,000 12,000 5,000 20,000 1...
+
+  [REWARD_TC]
+  URL   : https://www.ucb.com.bd/cards/reward-program-and-partners
+  Text  : of Credit Cards. To the extent, if anyinconsistency between the Conditions and the general Terms and Conditionsof issue of Credit Cards, the general T...
+
+  [FINANCIAL_LITERACY]
+  URL   : https://www.ucb.com.bd/FinancialLiteracy/bisesayitoseba
+  Text  : কুটির, মাইক্রো, ক্ষুদ্র ও মাঝারি শিল্প (সিএমএসএমই) স্কুলের ছাত্র-ছাত্রীদের ব্যাংকিং সেবা ও আধুনিক প্রযুক্তির সাথে পরিচিত করা এবং সঞ্চয়ের মাধ্যমে ছাত্...
+
+  [FINANCIAL_LITERACY]
+  URL   : https://www.ucb.com.bd/FinancialLiteracy/agentbanking
+  Text  : বাংলাদেশ ব্যাংকের অনুমোদনক্রমে ব্যাংকের প্রতিনিধি হয়ে যে সব প্রতিষ্ঠান বা সংস্থা জনগণকে ব্যাংকিং সেবা প্রদান করে থাকে তারাই ব্যাংকের এজেন্ট। এইসকল এজ...
+
+  [AUCTION_NOTICE]
+  URL   : https://www.ucb.com.bd/auction-notice
+  Text  : AUCTION NOTICE Get notices from the date: All Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec All 2026 2025 2024 2023 2022 2021 2020 2019 SL Auction N...
+
+  [TERMINATED_AGENTS]
+  URL   : https://www.ucb.com.bd/banking/agent-banking/list-of-agents-terminated-on-basis-of=complaints-irregularities-or-non-compliance
+  Text  : Agent Banking Agent Outlets List of agents terminated on basis of complaints, irregularities or non-compliance SI Terminated Agent Name Address Upazil...
+
+  [TERMINATED_AGENTS]
+  URL   : https://www.ucb.com.bd/banking/agent-banking/list-of-agents-terminated-on-basis-of=complaints-irregularities-or-non-compliance
+  Text  : Bazar, Chowdhury Plaza, Zakiganj, Sylhet Zakigonj Sylhet Sylhet 2024-10-06 35 BOISHAKHI COMPUTER AND DIGITAL STUDIO Farakkabad Bazar, Balia, Chandpur...
+
+  [CAREER]
+  URL   : https://www.ucb.com.bd/career/get-in-touch
+  Text  : Career United we are committed to give you every opportunity to learn and grow by creating a flourishing and inclusive workplace. Career Life at UCB L...
+
+  [PERSON_PROFILE]
+  URL   : https://www.ucb.com.bd/know-ucb/about-us/audit-committee/akhter-matin-chaudhury-2
+  Text  : Audit Committee Meet our Team Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Board of Directors Ex...
+
+  [PERSON_PROFILE]
+  URL   : https://www.ucb.com.bd/know-ucb/about-us/audit-committee/mr-atm-tahmiduzzaman-fcs-1
+  Text  : Audit Committee Meet our Team Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Board of Directors Ex...
+
+  [TOO_SHORT]
+  URL   : https://www.ucb.com.bd/news-and-events
+  Text  : News & Events Press Release Downloads Newsletter Note Identification...
+
+  [PRESS_RELEASE]
+  URL   : https://www.ucb.com.bd/news-and-events/press-release/breast-cancer-awareness-campaign-dhaka
+  Text  : Breast Cancer Awareness Campaign Dhaka Mrs. Rukhmila Zaman, Chairman of United Commercial Bank Limited (UCB) addressing for the Breast Cancer awarenes...
+
+  [PRESS_RELEASE]
+  URL   : https://www.ucb.com.bd/news-and-events/press-release/cheque-handover-to-honourable-prime-minister-for-mujib-borsho
+  Text  : Cheque handover to Honourable Prime minister for Mujib Borsho United Commercial Bank Limited donated a cheque of Taka 10,00,00,000/- (Taka Ten Crore o...
+
+  [TOO_SHORT]
+  URL   : https://www.ucb.com.bd/unet-internet-banking
+  Text  : Corporate Banking Login Here Retail Banking Login Here...

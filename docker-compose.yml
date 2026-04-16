@@ -1,0 +1,75 @@
+version: "3.9"
+
+# ===========================================================================
+# UCB Bank RAG Chatbot — Docker Compose
+# Starts: Qdrant (vector DB) + Arize Phoenix (monitoring)
+#
+# Usage:
+#   docker-compose up -d          # start in background
+#   docker-compose down           # stop and remove containers
+#   docker-compose logs -f        # follow logs
+# ===========================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Qdrant Vector Database
+  # Dashboard: http://localhost:6333/dashboard
+  # REST API : http://localhost:6333
+  # gRPC     : localhost:6334
+  # ---------------------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    container_name: ucb_qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # REST / Dashboard
+      - "6334:6334"   # gRPC
+    volumes:
+      # Persistent storage — data survives container restarts
+      - qdrant_storage:/qdrant/storage
+    environment:
+      # Enable telemetry reporting (set to false for privacy)
+      QDRANT__TELEMETRY_DISABLED: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Arize Phoenix — Local LLM Observability
+  # Dashboard: http://localhost:6006
+  # gRPC      : localhost:4317
+  # HTTP OTLP : localhost:4318
+  # ---------------------------------------------------------------------------
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: ucb_phoenix
+    restart: unless-stopped
+    ports:
+      - "6006:6006"   # Phoenix Web UI
+      - "4317:4317"   # OpenTelemetry gRPC collector
+      - "4318:4318"   # OpenTelemetry HTTP collector
+    volumes:
+      # Persistent trace storage
+      - phoenix_storage:/root/.phoenix
+    environment:
+      # Use SQLite for local storage (no external DB needed)
+      PHOENIX_WORKING_DIR: /root/.phoenix
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6006/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+# ---------------------------------------------------------------------------
+# Named volumes for data persistence
+# ---------------------------------------------------------------------------
+volumes:
+  qdrant_storage:
+    driver: local
+  phoenix_storage:
+    driver: local

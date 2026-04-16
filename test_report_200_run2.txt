@@ -1,0 +1,1825 @@
+
+======================================================================
+  UCB BANK RAG CHATBOT — TEST REPORT RUN 2
+  Date: 2026-04-06
+======================================================================
+
+CHANGES SINCE RUN 1 (code bugs fixed before this run):
+----------------------------------------------------------------------
+[CRITICAL] BM25 vocab mismatch FIXED
+  - qdrant_store.py now saves bm25_vocab.json after building the vocab
+  - retriever.py now LOADS that vocab at query time instead of using
+    hash(token) which was non-deterministic across processes.
+  - Sparse search was returning completely wrong chunks. Now fixed.
+  - Impact: sparse retrieval works correctly for the FIRST TIME.
+
+[HIGH] CORS bug FIXED
+  - allow_origins=["*"] + allow_credentials=True was rejected by browsers.
+  - Fixed: credentials only set True when specific origins are listed.
+
+[HIGH] Race condition FIXED (api/main.py)
+  - Double-checked locking with threading.Lock prevents double pipeline load.
+
+[HIGH] rewrite_query too aggressive FIXED (pipeline/rag_pipeline.py)
+  - Was rewriting ALL queries <=5 words as follow-ups.
+  - "What is DPS?" was being prepended with previous question.
+  - Fixed: only rewrites queries <=3 words or explicit follow-up starters.
+
+[MEDIUM] SpellChecker per-query FIXED
+  - SpellChecker() was loading word lists from disk on every query.
+  - Fixed: module-level singleton, loaded once at startup.
+
+[MEDIUM] _casual_reply substring match too broad FIXED
+  - "thanks" matched mid-conversation like "thanks for that, what about..."
+  - Fixed: substring only matches if it dominates the query (>50% of length).
+
+[MEDIUM] Embedder cache validation FIXED
+  - Cache was only validated by chunk count, not file modification time.
+  - Fixed: also checks if source file is newer than cache.
+
+[LOW] Crawler BFS O(n) pop FIXED (crawler.py)
+  - list.pop(0) is O(n). Fixed: switched to deque.popleft() which is O(1).
+  - Also added frontier_set to prevent duplicate URL queuing.
+
+[LLM] System prompts COMPLETELY REWRITTEN (llm/ollama_llm.py)
+  - Based on analysis of all 470 chunks + run 1 failure patterns.
+  - Key additions: AYMA/Taqwa disambiguation, skip nav menu text,
+    rates redirect, specific fallback, 7 query type rules.
+  - All 3 languages: English, Bangla, Banglish.
+
+NOTE ON TEST SCORES:
+This test uses BM25 retrieval directly from ucb_chunks.json.
+It does NOT exercise: Qdrant sparse/dense vectors, CrossEncoder reranking,
+or the LLM. The BM25 scores below are IDENTICAL to Run 1 because the
+retrieval path used in this test was not changed.
+The real improvement will show in the LIVE pipeline (Qdrant + Ollama)
+after re-indexing with the fixed vocab.
+
+----------------------------------------------------------------------
+
+==========================================================================================
+UCB BANK RAG CHATBOT — 200-QUESTION TEST REPORT
+Total chunks in DB: 470
+NOTE: BM25 retrieval only (Qdrant offline). Verdicts based on URL relevance.
+==========================================================================================
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: GENERAL
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q001] What is UCB Bank?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 6.01: https://www.ucb.com.bd/know-ucb/corporate-social-responsibility
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 8.822
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "United Commercial Bank PLC has a long history of associating itself in different spectrum of social responsibility and there are numerous glaring instances in which we can take pride. Over the past 30..."
+  Correct URL    : https://www.ucb.com.bd/know-ucb/corporate-social-responsibility  (score 6.01)
+
+[Q002] When was UCB Bank established?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 7.52: https://www.ucb.com.bd/know-ucb/about-us/senior-management/mr-nabil-mustafizur-rahman
+  Top chunk URL  : https://www.ucb.com.bd/cards/terms-and-conditions
+  BM25 top score : 8.744
+  What bot GETS  : "Transactions as shown on any previous Statement of Account. c. Purchases VIII. UCB shall be entitled at its sole discretion to vary the rate or method of calculation of the annual ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Senior Management Meet our Team Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Board of Directors Executive Committee Audit Committee Risk Managemen..."
+  Correct URL    : https://www.ucb.com.bd/know-ucb/about-us/senior-management/mr-nabil-mustafizur-rahman  (score 7.52)
+
+[Q003] Where is UCB's head office located?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 9.91: https://www.ucb.com.bd/know-ucb/corporate-information
+  Top chunk URL  : https://www.ucb.com.bd/news-and-events/press-release/united-commercial-bank-limited-organizes-integrity-related-workshop-at-chattogram
+  BM25 top score : 11.346
+  What bot GETS  : "United Commercial Bank Limited organizes Integrity related Workshop at Chattogram United Commercial Bank Limited (UCB) organized Integrity related Workshop at Chattogram on 22 Augu..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : ": United Commercial Bank PLC. Legal Form : A public limited company incorporated in Bangladesh on 26th June 1983 under the companies Act 1994 and listed in Dhaka Stock Exchange Limited on 30th Novembe..."
+  Correct URL    : https://www.ucb.com.bd/know-ucb/corporate-information  (score 9.91)
+
+[Q004] How many branches does UCB have?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 9.26: https://www.ucb.com.bd/learn-about-money/banking-tips/minimum-service
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 10.086
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Banking Tips Benefits of Direct Deposit Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of Direct Deposit How much should..."
+  Correct URL    : https://www.ucb.com.bd/learn-about-money/banking-tips/minimum-service  (score 9.26)
+
+[Q005] How many ATMs does UCB operate?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 7.98: https://www.ucb.com.bd/learn-about-money/banking-tips/minimum-service
+  Top chunk URL  : https://www.ucb.com.bd/cards/terms-and-conditions
+  BM25 top score : 12.830
+  What bot GETS  : "and Conditions shall be several and distinct from one another and if at any time any one or more of such Terms and Conditions becomes invalid, illegal or unenforceable, the validit..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Banking Tips Benefits of Direct Deposit Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of Direct Deposit How much should..."
+  Correct URL    : https://www.ucb.com.bd/learn-about-money/banking-tips/minimum-service  (score 7.98)
+
+[Q006] Who is the CEO of UCB Bank?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 12.95: https://www.ucb.com.bd/know-ucb/about-us/senior-management/mr-mohammad-mamdudur-rashid
+  Top chunk URL  : https://www.ucb.com.bd/news-and-events/press-release/united-commercial-bank-limited-and-pragati-life-insurance-limited-signs-an-agreement
+  BM25 top score : 16.016
+  What bot GETS  : "United Commercial Bank Limited and Pragati Life Insurance Limited signs an agreement United Commercial Bank Limited (UCB) and Pragati Life Insurance Limited (PLIL) signed an agreem..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Senior Management Meet our Team Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Board of Directors Executive Committee Audit Committee Risk Managemen..."
+  Correct URL    : https://www.ucb.com.bd/know-ucb/about-us/senior-management/mr-mohammad-mamdudur-rashid  (score 12.95)
+
+[Q007] Who is the Chairman of UCB?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 17.86
+  Top chunk URL  : https://www.ucb.com.bd/news-and-events/press-release/united-commercial-bank-limited-organizes-breast-cancer-awareness-campaign-in-chittagong
+  BM25 top score : 17.856
+  What bot GETS  : "United Commercial Bank Limited organizes Breast Cancer awareness campaign in Chittagong United Commercial Bank Limited (UCB) organized a breast cancer awareness campaign on 26 Octo..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q008] Is UCB listed on any stock exchange?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.66)
+  Top chunk URL  : https://www.ucb.com.bd/know-ucb/corporate-information
+  BM25 top score : 18.656
+  What bot GETS  : ": United Commercial Bank PLC. Legal Form : A public limited company incorporated in Bangladesh on 26th June 1983 under the companies Act 1994 and listed in Dhaka Stock Exchange Limited on 30th Novembe..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q009] What is UCB's SWIFT code?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 9.20)
+  Top chunk URL  : https://www.ucb.com.bd/offshore-banking/foreignCurrencyAccount
+  BM25 top score : 9.199
+  What bot GETS  : "Opening Form" with all the required documents via email to obu@ucb. com. bd Download the OBU "Fund Transfer Form" here Fill up the full form and sign properly Submit the completed and signed "Fund Tra..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q010] What is UCB's official website?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 6.75: https://www.ucb.com.bd/know-ucb/corporate-information
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/imperial-deposit
+  BM25 top score : 10.247
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges UCB TAQWA Mudaraba Imperial Savings Account Welcome to the world of UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : ": United Commercial Bank PLC. Legal Form : A public limited company incorporated in Bangladesh on 26th June 1983 under the companies Act 1994 and listed in Dhaka Stock Exchange Limited on 30th Novembe..."
+  Correct URL    : https://www.ucb.com.bd/know-ucb/corporate-information  (score 6.75)
+
+[Q011] What is UCB's general helpline number?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 10.60
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/sms-banking
+  BM25 top score : 10.596
+  What bot GETS  : "UCB believes in the convenience of Banking. We have come up with SMS Banking Services fulfilling the demand of modern banking trend. Get real-time banking information on your hand ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q012] What email can I use to contact UCB?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 24.20
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 24.203
+  What bot GETS  : "for 3 years from the date they are earned. 13. Where can I check my points balance? Your points balance will be shown on your monthly statement. 14. How do I redeem my points? You ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q013] How many employees does UCB have?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.69)
+  Top chunk URL  : https://www.ucb.com.bd/learn-about-money/banking-tips/minimum-service
+  BM25 top score : 15.692
+  What bot GETS  : "Banking Tips Benefits of Direct Deposit Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of Direct Deposit How much should..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q014] What banking segments does UCB operate in?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 9.51: https://www.ucb.com.bd/banking/agent-banking/about-agent-banking
+  Top chunk URL  : https://www.ucb.com.bd/cards/terms-and-conditions
+  BM25 top score : 13.380
+  What bot GETS  : "and Conditions shall be several and distinct from one another and if at any time any one or more of such Terms and Conditions becomes invalid, illegal or unenforceable, the validit..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Agent Banking About Agent Banking Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking About UCB Agent Banking Services Products Agent Outlets How to becom..."
+  Correct URL    : https://www.ucb.com.bd/banking/agent-banking/about-agent-banking  (score 9.51)
+
+[Q015] What is DSE30 Index and is UCB part of it?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 17.42)
+  Top chunk URL  : https://www.ucb.com.bd/know-ucb/ucb-profile
+  BM25 top score : 17.421
+  What bot GETS  : "United Commercial Bank PLC (UCB) is one of the leading first generation private commercial banks of the country playing a pivotal role in creating, nourishing and assistance towards entrepreneurship, ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: SAVINGS/DEPOSITS
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q016] How do I open a savings account at UCB?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 18.05
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 18.045
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q017] What documents are needed to open a UCB savings account?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 16.89: https://www.ucb.com.bd/banking/retail-banking/shomota-savings-account
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/sms-banking
+  BM25 top score : 17.433
+  What bot GETS  : "UCB believes in the convenience of Banking. We have come up with SMS Banking Services fulfilling the demand of modern banking trend. Get real-time banking information on your hand ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "This is a no-frills savings account designed to empower the unbanked population, especially those living below the poverty line. With this initiative, UCB is committed to promoting sustainable financi..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/shomota-savings-account  (score 16.89)
+
+[Q018] What is UCB Earning Plus Fixed Deposit?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 21.32: https://www.ucb.com.bd/banking/retail-banking/fixed-deposit
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/products
+  BM25 top score : 23.167
+  What bot GETS  : "UCB Savings Plus Account (Special Savings Account) UCB Women Savings Accounts (Savings Account for Women) UCB NRB Savings Account (Savings Account for NRB) UCB Farmer’s Savings (Fa..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking UCB Earning Plus FD UCB Money Maximizer Double Retail Fixed Deposit (Exclusive) Retail Fixed Deposit (..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/fixed-deposit  (score 21.32)
+
+[Q019] What is the minimum deposit for UEPFD?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 10.79)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  BM25 top score : 10.794
+  What bot GETS  : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q020] What is the interest rate for a 1-year UEPFD?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 17.59)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  BM25 top score : 17.594
+  What bot GETS  : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q021] What is the interest rate for a 2-year UEPFD?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 17.86)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  BM25 top score : 17.856
+  What bot GETS  : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q022] What is the interest rate for a 3-year UEPFD?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.31)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  BM25 top score : 18.305
+  What bot GETS  : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q023] What happens to UEPFD interest rates for 4-10 year tenors?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 17.18)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  BM25 top score : 17.179
+  What bot GETS  : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q024] Do senior citizens get special interest rates on FD?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.85)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  BM25 top score : 14.848
+  What bot GETS  : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q025] What is the senior citizen age threshold at UCB?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 11.91
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features/protect-your-card
+  BM25 top score : 11.908
+  What bot GETS  : "Protect your Card Credit Card Choose your Credit Card Features Terms & Conditions Reward Program & Partners Safety Tips Card Security Documents Required Schedule of charges Importa..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q026] Can I do partial encashment of UEPFD?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 11.85: https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 17.563
+  What bot GETS  : "for 3 years from the date they are earned. 13. Where can I check my points balance? Your points balance will be shown on your monthly statement. 14. How do I redeem my points? You ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd  (score 11.85)
+
+[Q027] Does UEPFD auto-renew?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 7.37
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit/profit-mechanism-of-mudaraba-deposit-accounts
+  BM25 top score : 7.373
+  What bot GETS  : "Ucb Taqwa Profit Mechanism of Mudaraba Deposit Accounts Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q028] Can I get a loan against my UEPFD?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 18.28
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 18.275
+  What bot GETS  : "for 3 years from the date they are earned. 13. Where can I check my points balance? Your points balance will be shown on your monthly statement. 14. How do I redeem my points? You ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q029] What is the credit facility percentage on UEPFD?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 9.55: https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/sms-banking
+  BM25 top score : 11.152
+  What bot GETS  : "UCB believes in the convenience of Banking. We have come up with SMS Banking Services fulfilling the demand of modern banking trend. Get real-time banking information on your hand ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd  (score 9.55)
+
+[Q030] What is UCB Super Flex DPS?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 14.13: https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  Top chunk URL  : https://www.ucb.com.bd/banking
+  BM25 top score : 16.101
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Retail Banking Account Savings Account Current Account Dynamic Benefits Savings UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  Correct URL    : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps  (score 14.13)
+
+[Q031] What is the minimum installment for a 1-year Super Flex DPS?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 23.60)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 23.604
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q032] What is the maturity value of a 1-year Super Flex DPS at BDT 5000/month?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 41.00)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 40.998
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q033] What is the maturity value of a 10-year Super Flex DPS at BDT 1000/month?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 43.39)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 43.395
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q034] Does Super Flex DPS have a grace period for late installments?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 20.15)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 20.155
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q035] What other DPS products does UCB offer?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 12.52)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/income-sharing-ratio-and-deposit
+  BM25 top score : 12.517
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges Income Sharing Ratio (ISR) for UCB Taqwa Deposit Products UCB TAQWA profit bearing account..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: CREDIT CARDS
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q036] What credit cards does UCB offer?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 13.71)
+  Top chunk URL  : https://www.ucb.com.bd/cards/important-information
+  BM25 top score : 13.715
+  What bot GETS  : "Important Information Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Reward Program &..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q037] What is the credit limit for UCB Classic card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.99)
+  Top chunk URL  : https://www.ucb.com.bd/cards/master-classic-card
+  BM25 top score : 16.993
+  What bot GETS  : "UCB Mastercard Classic Card Mastercard Classic Card: Special Features: Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency Card 0% interest up to..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q038] What is the interest-free period on UCB credit cards?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 18.60: https://www.ucb.com.bd/cards
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 18.996
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchants Annual fee waiver ..."
+  Correct URL    : https://www.ucb.com.bd/cards  (score 18.60)
+
+[Q039] Which UCB credit cards offer EMI?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 13.71)
+  Top chunk URL  : https://www.ucb.com.bd/cards/important-information
+  BM25 top score : 13.715
+  What bot GETS  : "Important Information Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Reward Program &..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q040] How many months can I get 0% EMI?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 21.18)
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features/protect-your-card
+  BM25 top score : 21.179
+  What bot GETS  : "Only 0. 35% of outstanding Balance will be charged as premium in statement date. Will I get insurance coverage against the spending of supple card? Yes; insurance coverage is applied on total outstand..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q041] How many merchants support UCB EMI?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 11.52: https://www.ucb.com.bd/cards
+  Top chunk URL  : https://www.ucb.com.bd/know-ucb/corporate-social-responsibility
+  BM25 top score : 13.672
+  What bot GETS  : "UCB has been tremendously supporting the growth of "Football" and "golf" sector. Our main activities include: Patronization on sports and youth development especially at rural and ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchants Annual fee waiver ..."
+  Correct URL    : https://www.ucb.com.bd/cards  (score 11.52)
+
+[Q042] How can I get annual fee waiver on Classic card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 22.19)
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 22.190
+  What bot GETS  : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchants Annual fee waiver ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q043] What extra benefits does UCB Gold card offer over Classic?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.15)
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features
+  BM25 top score : 14.146
+  What bot GETS  : "in EMIs with 0% Interest at your convenience. The plan allows you to have more disposable cash in your accounts, earning interest for you. Simply ask for UCB Card’s 0% Equal Instalment Plan at our par..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q044] What lounge access does UCB Platinum card include?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 17.82)
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features
+  BM25 top score : 17.824
+  What bot GETS  : "in EMIs with 0% Interest at your convenience. The plan allows you to have more disposable cash in your accounts, earning interest for you. Simply ask for UCB Card’s 0% Equal Instalment Plan at our par..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q045] What is Priority Pass / Lounge Key?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.34)
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 18.343
+  What bot GETS  : "free entries per year. Here you can find Priority Pass lounges . Meet & Greet service up to 4 persons each time without any charge at HSIA (no maximum limit per year) 2X reward points for each BDT50/ ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q046] How many lounges does Priority Pass cover?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.07)
+  Top chunk URL  : https://www.ucb.com.bd/cards/business-card
+  BM25 top score : 16.074
+  What bot GETS  : "EMV Compliant Contactless Dual Currency card 20% cashback up to BDT 500 for 1st two purchase transactions within 30 days of issuance. 5% cashback at local fuel stations. Maximum BDT 1500/year. No annu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q047] What hotel benefits does UCB Platinum card have?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.29)
+  Top chunk URL  : https://www.ucb.com.bd/cards/master-platinum-card
+  BM25 top score : 15.288
+  What bot GETS  : "UCB Mastercard Platinum Card Mastercard Platinum Card: Special Features: EMV Compliant Contactless Dual Currency Card Unlimited Free access to UCB Domestic & International Imperial Airport Lounges wit..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q048] What cashback does UCB Signature card offer?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 13.25)
+  Top chunk URL  : https://www.ucb.com.bd/cards/business-card
+  BM25 top score : 13.252
+  What bot GETS  : "EMV Compliant Contactless Dual Currency card 20% cashback up to BDT 500 for 1st two purchase transactions within 30 days of issuance. 5% cashback at local fuel stations. Maximum BDT 1500/year. No annu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q049] How many signing bonus points does Signature card give?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 11.74: https://www.ucb.com.bd/cards/choose-your-card/visa-signature-card
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 13.767
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Visa Signature Card: Special Features: EMV Compliant Contactless Dual Currency Card 10% Cash Back on superstores and dining (transactions within Bangladesh) for 3 months from issuance. Maximum cash ba..."
+  Correct URL    : https://www.ucb.com.bd/cards/choose-your-card/visa-signature-card  (score 11.74)
+
+[Q050] How many free Priority Pass entries does Signature card include per year?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 27.85)
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 27.853
+  What bot GETS  : "free entries per year. Here you can find Priority Pass lounges . Meet & Greet service up to 4 persons each time without any charge at HSIA (no maximum limit per year) 2X reward points for each BDT50/ ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q051] Does Signature card offer Meet and Greet at the airport?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 18.45: https://www.ucb.com.bd/cards/choose-your-card/visa-signature-card
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 20.055
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Visa Signature Card: Special Features: EMV Compliant Contactless Dual Currency Card 10% Cash Back on superstores and dining (transactions within Bangladesh) for 3 months from issuance. Maximum cash ba..."
+  Correct URL    : https://www.ucb.com.bd/cards/choose-your-card/visa-signature-card  (score 18.45)
+
+[Q052] What is the cashback rate on UCB World Mastercard for international hotels?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.39)
+  Top chunk URL  : https://www.ucb.com.bd/cards/master-platinum-card
+  BM25 top score : 18.391
+  What bot GETS  : "UCB Mastercard Platinum Card Mastercard Platinum Card: Special Features: EMV Compliant Contactless Dual Currency Card Unlimited Free access to UCB Domestic & International Imperial Airport Lounges wit..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q053] What gift voucher does World card give on annual spend?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.70)
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 18.704
+  What bot GETS  : "free entries per year. Here you can find Priority Pass lounges . Meet & Greet service up to 4 persons each time without any charge at HSIA (no maximum limit per year) 2X reward points for each BDT50/ ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q054] What are the benefits of UCB Business Credit Card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.84)
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features/protect-your-card
+  BM25 top score : 18.844
+  What bot GETS  : "Protect your Card Credit Card Choose your Credit Card Features Terms & Conditions Reward Program & Partners Safety Tips Card Security Documents Required Schedule of charges Important Information Card ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q055] Does UCB offer a Business Debit Card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.64)
+  Top chunk URL  : https://www.ucb.com.bd/cards/important-information
+  BM25 top score : 16.640
+  What bot GETS  : "Important Information Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Reward Program &..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q056] What is the cash withdrawal limit on Business Debit Card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 17.72)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 17.717
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q057] Can I use upay wallet with UCB credit cards?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 18.77: https://www.ucb.com.bd/cards
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 18.868
+  What bot GETS  : "for 3 years from the date they are earned. 13. Where can I check my points balance? Your points balance will be shown on your monthly statement. 14. How do I redeem my points? You ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchants Annual fee waiver ..."
+  Correct URL    : https://www.ucb.com.bd/cards  (score 18.77)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: DEBIT CARDS
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q058] What is UCB Dual Currency Debit Card?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 14.26: https://www.ucb.com.bd/banking/retail-banking/debit-card
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-swadhin-account
+  BM25 top score : 14.925
+  What bot GETS  : "Eligibility – Any Bangladeshi freelancer or service exporter Age: 18 years & above A Savings or Current Account holder of UCB can open this account New customer must have to open a..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/debit-card  (score 14.26)
+
+[Q059] What is the annual fee for UCB debit card on retail savings account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 27.19)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 27.186
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q060] Is the debit card free for salary/payroll accounts?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 19.59: https://www.ucb.com.bd/banking/retail-banking/debit-card
+  Top chunk URL  : https://www.ucb.com.bd/learn-about-money/banking-tips/minimum-service
+  BM25 top score : 23.813
+  What bot GETS  : "Banking Tips Benefits of Direct Deposit Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of Direct Dep..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/debit-card  (score 19.59)
+
+[Q061] What is the debit card fee for UCB Youngsters account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 23.74)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 23.741
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q062] What is the debit card fee for UCB AYMA account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 21.33)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 21.334
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q063] What is the debit card fee for UCB Prothom account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 22.69)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 22.686
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q064] What is the cash withdrawal fee at UCB ATMs?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 28.58)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 28.581
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q065] What is the fee for withdrawing cash at NPSB network ATMs?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 29.63)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 29.628
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q066] What is the fee for international ATM cash withdrawal?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 19.31)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 19.315
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q067] What is the international transaction markup fee?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 12.23: https://www.ucb.com.bd/banking/retail-banking/debit-card
+  Top chunk URL  : https://www.ucb.com.bd/cards/terms-and-conditions
+  BM25 top score : 12.264
+  What bot GETS  : "If the Cardholder loses or damages his Card or requires renewal, replacement or additional Cards, the Bank may at its discretion issue such Cards as the Cardholder may request. III..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/debit-card  (score 12.23)
+
+[Q068] What is the Takapay debit card and when was it launched?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 14.64: https://www.ucb.com.bd/banking/retail-banking/debit-card
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features
+  BM25 top score : 17.420
+  What bot GETS  : "in EMIs with 0% Interest at your convenience. The plan allows you to have more disposable cash in your accounts, earning interest for you. Simply ask for UCB Card’s 0% Equal Instal..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/debit-card  (score 14.64)
+
+[Q069] What is the issuance fee for Takapay debit card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 22.19)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 22.191
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q070] What is the PIN replacement fee at branch?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 21.80)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 21.803
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q071] Is there a fee for balance inquiry at UCB ATMs?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 27.85)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 27.849
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q072] What is the debit card helpline number?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 14.88
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/sms-banking
+  BM25 top score : 14.882
+  What bot GETS  : "UCB believes in the convenience of Banking. We have come up with SMS Banking Services fulfilling the demand of modern banking trend. Get real-time banking information on your hand ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: PREPAID CARDS
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q073] What is UCB International Prepaid Card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.54)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers
+  BM25 top score : 14.536
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Partners Equal Installme..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q074] Do I need a bank account for UCB prepaid card?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 16.59: https://www.ucb.com.bd/banking/retail-banking/prepaid-card
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 18.405
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Features & Benefits of UCB International Prepaid Card: No need to open Bank account Limit will be as per Load Amount. Maximum limit is as per Bangladesh Bank guidelines issued from time to time which ..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card  (score 16.59)
+
+[Q075] What is the maximum annual limit on UCB prepaid card?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 16.30: https://www.ucb.com.bd/banking/retail-banking/prepaid-card
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 16.621
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Features & Benefits of UCB International Prepaid Card: No need to open Bank account Limit will be as per Load Amount. Maximum limit is as per Bangladesh Bank guidelines issued from time to time which ..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card  (score 16.30)
+
+[Q076] How long is the UCB prepaid card valid?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 15.77: https://www.ucb.com.bd/banking/retail-banking/prepaid-card
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 17.032
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Features & Benefits of UCB International Prepaid Card: No need to open Bank account Limit will be as per Load Amount. Maximum limit is as per Bangladesh Bank guidelines issued from time to time which ..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card  (score 15.77)
+
+[Q077] Who is eligible for UCB prepaid card?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 11.49: https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/payroll-card/
+  BM25 top score : 15.583
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Part..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Partners Equal Installme..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers  (score 11.49)
+
+[Q078] What documents are needed for prepaid card?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 13.16: https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/payroll-card/
+  BM25 top score : 15.017
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Part..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Partners Equal Installme..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers  (score 13.16)
+
+[Q079] What other prepaid card products does UCB offer?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 13.42: https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers
+  Top chunk URL  : https://www.ucb.com.bd/cards/important-information
+  BM25 top score : 17.455
+  What bot GETS  : "Important Information Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditi..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Partners Equal Installme..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers  (score 13.42)
+
+[Q080] What is UPAY-UCB Co-Branded Prepaid Card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 26.13)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers
+  BM25 top score : 26.125
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Partners Equal Installme..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: LOANS
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q081] What personal loan products does UCB offer?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 12.52: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 13.980
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 12.52)
+
+[Q082] What is the maximum UCB personal loan amount?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 19.08: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 21.128
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 19.08)
+
+[Q083] What is the repayment tenure for personal loan?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 20.21: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 22.196
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 20.21)
+
+[Q084] Is UCB personal loan secured or unsecured?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 17.73: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 18.214
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 17.73)
+
+[Q085] What is the minimum monthly income required for personal loan?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 19.46: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 19.860
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 19.46)
+
+[Q086] What is the minimum income for self-employed applicants?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 19.23: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/home-loan
+  BM25 top score : 24.324
+  What bot GETS  : "UCB Home Loan helps you to buy or build your dream home with an easy financing solution, featuring competitive interest rates and a host of benefits. UCB Home Loan can be availed f..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 19.23)
+
+[Q087] What is the minimum age for personal loan?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 17.52: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 18.132
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 17.52)
+
+[Q088] Can NRBs apply for UCB personal loan?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 14.74: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 15.380
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 14.74)
+
+[Q089] What other retail loan products does UCB offer?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 11.58: https://www.ucb.com.bd/banking/retail-banking
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit/profit-mechanism-of-mudaraba-deposit-accounts
+  BM25 top score : 12.971
+  What bot GETS  : "Ucb Taqwa Profit Mechanism of Mudaraba Deposit Accounts Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Retail Banking Account Savings Account Current Account Dynamic Benefits Savings UCB NRB Savings UCB Yo..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking  (score 11.58)
+
+[Q090] What SME loan products does UCB have?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.69)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/sms-banking-services
+  BM25 top score : 14.688
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking SME Loans UCB SME Installment Loan (USIL) UCB Dhrubo UCB Onkur UCB Durjoy UCB Thikana UCB SME Revolvin..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q091] What is UCB Agri and Rural Fast Loan?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 24.23)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/agri/ucb-agri-rural-fast-loan
+  BM25 top score : 24.229
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking UCB Agri & Rural Fast Loan (ARFL) AR..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q092] What is the loan limit for UCB ARFL?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.17)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/agri/ucb-agri-rural-fast-loan
+  BM25 top score : 18.166
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking UCB Agri & Rural Fast Loan (ARFL) AR..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q093] What is the maximum tenure for ARFL?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 11.96)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/agri/ucb-agri-rural-fast-loan
+  BM25 top score : 11.959
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking UCB Agri & Rural Fast Loan (ARFL) AR..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q094] Does ARFL require collateral?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 11.19)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/agri/ucb-agri-rural-fast-loan
+  BM25 top score : 11.187
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking UCB Agri & Rural Fast Loan (ARFL) AR..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q095] How quickly is ARFL processed?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 6.49: https://www.ucb.com.bd/banking/sme-banking/agri/ucb-agri-rural-fast-loan
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 7.855
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking UCB Agri & Rural Fast Loan (ARFL) AR..."
+  Correct URL    : https://www.ucb.com.bd/banking/sme-banking/agri/ucb-agri-rural-fast-loan  (score 6.49)
+
+[Q096] What corporate loan products does UCB offer?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 10.03: https://www.ucb.com.bd/banking/corporate-banking/industrial-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/income-sharing-ratio-and-deposit
+  BM25 top score : 12.517
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges Income Sharing Ratio (ISR) for UCB Taqwa Deposit Products UCB TAQWA pr..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Corporate Banking Loans Industrial Loan Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Corporate Banking Loans Export Finance Import Finance House Bu..."
+  Correct URL    : https://www.ucb.com.bd/banking/corporate-banking/industrial-loan  (score 10.03)
+
+[Q097] Does UCB offer export finance?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 12.88)
+  Top chunk URL  : https://www.ucb.com.bd/banking/corporate-banking/more-corporate-banking-loans
+  BM25 top score : 12.880
+  What bot GETS  : "Corporate Banking Loans More Corporate Banking Loans Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Corporate Banking Loans Export Finance Import Fin..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q098] What is pre-shipment finance?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 21.63)
+  Top chunk URL  : https://www.ucb.com.bd/banking/corporate-banking/export-and-import-finance
+  BM25 top score : 21.634
+  What bot GETS  : "Pre-shipment Financing: This facility is offered to an exporter by way of packing credit to enable him to finance purchase or import of raw materials, processing and packing of the goods meant for exp..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q099] What is post-shipment finance?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 20.82)
+  Top chunk URL  : https://www.ucb.com.bd/banking/corporate-banking/export-and-import-finance
+  BM25 top score : 20.823
+  What bot GETS  : "Pre-shipment Financing: This facility is offered to an exporter by way of packing credit to enable him to finance purchase or import of raw materials, processing and packing of the goods meant for exp..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q100] Does UCB offer loan syndication?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 13.19)
+  Top chunk URL  : https://www.ucb.com.bd/banking/corporate-banking/loan-syndication
+  BM25 top score : 13.186
+  What bot GETS  : "Structured Finance LOAN SYNDICATION Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Corporate Banking Loans Export Finance Import Finance House Buildi..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: NRB BANKING
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q101] What NRB banking products does UCB offer?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 13.00: https://www.ucb.com.bd/banking/nrb-banking/nrb-sms-banking
+  Top chunk URL  : https://www.ucb.com.bd/cards/important-information
+  BM25 top score : 14.140
+  What bot GETS  : "Important Information Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditi..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking UCB NRB SAVINGS UCB Probashi Savings Account (Uclick) UCB NRB DPS PLUS NRB Banking Services Remittance..."
+  Correct URL    : https://www.ucb.com.bd/banking/nrb-banking/nrb-sms-banking  (score 13.00)
+
+[Q102] Who is eligible for NRB savings account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 11.70)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/shomota-savings-account
+  BM25 top score : 11.697
+  What bot GETS  : "This is a no-frills savings account designed to empower the unbanked population, especially those living below the poverty line. With this initiative, UCB is committed to promoting sustainable financi..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q103] What is the minimum opening balance for NRB savings account in urban areas?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 16.39: https://www.ucb.com.bd/ucb-taqwa/deposit/mudaraba-savings-account
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/business-network
+  BM25 top score : 19.093
+  What bot GETS  : "United Commercial Bank PLC (UCB) has built a robust and rapidly growing Agent Banking network to bring formal banking services closer to the unbanked and underserved population of ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Ucb Taqwa Mudaraba Savings Account Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of Mudaraba Deposit Acc..."
+  Correct URL    : https://www.ucb.com.bd/ucb-taqwa/deposit/mudaraba-savings-account  (score 16.39)
+
+[Q104] What is the minimum opening balance for NRB savings account in rural areas?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 15.81: https://www.ucb.com.bd/ucb-taqwa/imperial-deposit/mudaraba-imperial-savings-account
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/business-network
+  BM25 top score : 18.381
+  What bot GETS  : "United Commercial Bank PLC (UCB) has built a robust and rapidly growing Agent Banking network to bring formal banking services closer to the unbanked and underserved population of ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Ucb Taqwa Mudaraba Imperial Savings Account Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of Mudaraba De..."
+  Correct URL    : https://www.ucb.com.bd/ucb-taqwa/imperial-deposit/mudaraba-imperial-savings-account  (score 15.81)
+
+[Q105] Is account maintenance free for NRB accounts?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 10.46: https://www.ucb.com.bd/banking/nrb-banking/nrb-ucb-nrb-savings
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-swadhin-account
+  BM25 top score : 12.305
+  What bot GETS  : "Eligibility – Any Bangladeshi freelancer or service exporter Age: 18 years & above A Savings or Current Account holder of UCB can open this account New customer must have to open a..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB appreciates all the non-resident Bangladeshis living in abroad & values their contribution for our economic growth. We make sure your hard earned money is secured. Eligibility: Must be a non-resid..."
+  Correct URL    : https://www.ucb.com.bd/banking/nrb-banking/nrb-ucb-nrb-savings  (score 10.46)
+
+[Q106] What is UCB NRB DPS Plus?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 16.39: https://www.ucb.com.bd/banking/nrb-banking/nrb-locker-services
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/products
+  BM25 top score : 18.995
+  What bot GETS  : "UCB Savings Plus Account (Special Savings Account) UCB Women Savings Accounts (Savings Account for Women) UCB NRB Savings Account (Savings Account for NRB) UCB Farmer’s Savings (Fa..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking UCB NRB SAVINGS UCB Probashi Savings Account (Uclick) UCB NRB DPS PLUS NRB Banking Services Remittance..."
+  Correct URL    : https://www.ucb.com.bd/banking/nrb-banking/nrb-locker-services  (score 16.39)
+
+[Q107] What is the minimum installment for NRB DPS Plus?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 14.91: https://www.ucb.com.bd/learn-about-money/investment-tips/dps
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/products
+  BM25 top score : 16.362
+  What bot GETS  : "UCB Savings Plus Account (Special Savings Account) UCB Women Savings Accounts (Savings Account for Women) UCB NRB Savings Account (Savings Account for NRB) UCB Farmer’s Savings (Fa..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Investment Tips How to Invest DPS Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of Direct Deposit How much should I bor..."
+  Correct URL    : https://www.ucb.com.bd/learn-about-money/investment-tips/dps  (score 14.91)
+
+[Q108] What is the maturity value of 5-year NRB DPS Plus?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 25.26)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 25.258
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q109] What is the maturity value of 10-year NRB DPS Plus?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 25.24)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 25.237
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q110] What documents are needed for NRB account opening?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 10.18
+  Top chunk URL  : https://www.ucb.com.bd/offshore-banking/foreignCurrencyAccount
+  BM25 top score : 10.176
+  What bot GETS  : "Offshore Banking Foreign Currency Account (Current) Offshore Banking Foreign Currency Account (Term Deposit) Attractive interest against Term Deposits Interest is completely TAX-FR..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: LOUNGE ACCESS
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q111] Which UCB cards give airport lounge access?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 19.55)
+  Top chunk URL  : https://www.ucb.com.bd/banking/ucb-lounge/loungeTerm
+  BM25 top score : 19.554
+  What bot GETS  : "Terms and Conditions: Supplementary Cardholder can only access if not accompanied by Primary Cardholder. No companion is allowed. Children under 6 years of age will get free access at International UC..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q112] How many companions can Signature card bring to international lounge?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 16.02: https://www.ucb.com.bd/banking/ucb-lounge/loungeTerm
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 16.711
+  What bot GETS  : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchant..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Terms and Conditions: Supplementary Cardholder can only access if not accompanied by Primary Cardholder. No companion is allowed. Children under 6 years of age will get free access at International UC..."
+  Correct URL    : https://www.ucb.com.bd/banking/ucb-lounge/loungeTerm  (score 16.02)
+
+[Q113] How many companions can World card bring to lounge?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 12.60: https://www.ucb.com.bd/cards/choose-your-card/master-world-card
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 17.288
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Mastercard World Credit Card: Special Features: 1% cash back on international transactions at Hotel and Dining. Yearly Maximum 50$ per card. Exclusive yearly gift voucher of BDT 5000 upon yearly trans..."
+  Correct URL    : https://www.ucb.com.bd/cards/choose-your-card/master-world-card  (score 12.60)
+
+[Q114] How many companions can Platinum card bring to international lounge?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 17.46: https://www.ucb.com.bd/cards/visa-platinum-card
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 18.144
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB Visa Platinum Card VISA Platinum Card: Special Features: EMV Compliant Contactless Dual Currency Card Unlimited Free access to UCB Domestic & International Imperial Airport Lounges with guest Buy ..."
+  Correct URL    : https://www.ucb.com.bd/cards/visa-platinum-card  (score 17.46)
+
+[Q115] How many companions can Gold card bring to international lounge?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 17.06: https://www.ucb.com.bd/cards/visa-gold-card
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 17.969
+  What bot GETS  : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchant..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB Visa Gold Card Visa Gold Card: Special Features: EMV Compliant Contactless Dual Currency Card Unlimited Free access to UCB Domestic & International Imperial Airport Lounges 0% interest up to 24 mo..."
+  Correct URL    : https://www.ucb.com.bd/cards/visa-gold-card  (score 17.06)
+
+[Q116] Does Classic card give lounge access?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 12.21)
+  Top chunk URL  : https://www.ucb.com.bd/banking/ucb-lounge/loungeTerm
+  BM25 top score : 12.208
+  What bot GETS  : "Terms and Conditions: Supplementary Cardholder can only access if not accompanied by Primary Cardholder. No companion is allowed. Children under 6 years of age will get free access at International UC..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q117] How many companions can Business card bring to international lounge?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.02)
+  Top chunk URL  : https://www.ucb.com.bd/banking/ucb-lounge/loungeTerm
+  BM25 top score : 16.018
+  What bot GETS  : "Terms and Conditions: Supplementary Cardholder can only access if not accompanied by Primary Cardholder. No companion is allowed. Children under 6 years of age will get free access at International UC..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q118] What is the domestic lounge access for Platinum card?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 22.17)
+  Top chunk URL  : https://www.ucb.com.bd/cards/master-platinum-card
+  BM25 top score : 22.166
+  What bot GETS  : "UCB Mastercard Platinum Card Mastercard Platinum Card: Special Features: EMV Compliant Contactless Dual Currency Card Unlimited Free access to UCB Domestic & International Imperial Airport Lounges wit..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q119] Does ERQ/RFCD card give lounge access?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 12.21)
+  Top chunk URL  : https://www.ucb.com.bd/banking/ucb-lounge/loungeTerm
+  BM25 top score : 12.208
+  What bot GETS  : "Terms and Conditions: Supplementary Cardholder can only access if not accompanied by Primary Cardholder. No companion is allowed. Children under 6 years of age will get free access at International UC..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q120] What is Asset Privilege Prepaid Card lounge benefit?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 9.64: https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features/protect-your-card
+  BM25 top score : 12.892
+  What bot GETS  : "Protect your Card Credit Card Choose your Credit Card Features Terms & Conditions Reward Program & Partners Safety Tips Card Security Documents Required Schedule of charges Importa..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Partners Equal Installme..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card/existing-new-offers  (score 9.64)
+
+[Q121] What is Imperial Debit Card lounge access?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.84)
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 16.839
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and Relationships. We of..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: IMPERIAL BANKING
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q122] What is UCB Imperial Banking?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 11.31)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/imperial-deposit/mudaraba-imperial-savings-account
+  BM25 top score : 11.313
+  What bot GETS  : "Ucb Taqwa Mudaraba Imperial Savings Account Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of Mudaraba De..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q123] What is the eligibility for UCB Imperial Banking option 1?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 19.73)
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 19.727
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and Relationships. We of..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q124] What is option 2 for Imperial Banking eligibility?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.48)
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 15.481
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and Relationships. We of..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q125] What is option 3 for Imperial Banking eligibility?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.74)
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 15.739
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and Relationships. We of..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q126] What are the benefits of UCB Imperial Banking?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.02)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/imperial-deposit
+  BM25 top score : 18.019
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges UCB TAQWA Mudaraba Imperial Savings Account Welcome to the world of UCB TAQWA Imperial Ban..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q127] Do Imperial customers get dedicated relationship managers?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 26.26)
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 26.256
+  What bot GETS  : "requirement Returns We have a wide range of exclusive products and financial solutions customized just for you. Imperial High Yield Account In the world of bespoke financial services, we value how muc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q128] What credit card fee waiver do Imperial customers get?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 17.05: https://www.ucb.com.bd/imperial
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 18.654
+  What bot GETS  : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchant..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and Relationships. We of..."
+  Correct URL    : https://www.ucb.com.bd/imperial  (score 17.05)
+
+[Q129] What lounge access do Imperial customers get?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 14.13: https://www.ucb.com.bd/ucb-taqwa/imperial-deposit
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features
+  BM25 top score : 15.470
+  What bot GETS  : "in EMIs with 0% Interest at your convenience. The plan allows you to have more disposable cash in your accounts, earning interest for you. Simply ask for UCB Card’s 0% Equal Instal..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges UCB TAQWA Mudaraba Imperial Savings Account Welcome to the world of UCB TAQWA Imperial Ban..."
+  Correct URL    : https://www.ucb.com.bd/ucb-taqwa/imperial-deposit  (score 14.13)
+
+[Q130] How many free overseas lounge entries does Signature card give Imperial customers?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 21.49)
+  Top chunk URL  : https://www.ucb.com.bd/cards/choose-your-card/visa-signature-card
+  BM25 top score : 21.488
+  What bot GETS  : "Visa Signature Card: Special Features: EMV Compliant Contactless Dual Currency Card 10% Cash Back on superstores and dining (transactions within Bangladesh) for 3 months from issuance. Maximum cash ba..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: ISLAMIC BANKING
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q131] What is UCB Islamic Banking?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 11.44: https://www.ucb.com.bd/news-and-events/press-release/inauguration-of-ucb-taqwa-islamic-banking-window-of-united-commercial-bank-limited
+  Top chunk URL  : https://www.ucb.com.bd/know-ucb/about-us/shariah-supervisory-committee/dr-mohammad-manjurur-rahman
+  BM25 top score : 11.543
+  What bot GETS  : "Shariah Supervisory Committee Meet our Team Know UCB Profile Corporate Information About Us Investor Relations CSR Green Banking Right of info Board of Directors Executive Committe..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Inauguration of UCB Taqwa, Islamic Banking window of United Commercial Bank Limited Inauguration of UCB Taqwa, Islamic Banking window of United Commercial Bank Limited United Commercial Bank Limited (..."
+  Correct URL    : https://www.ucb.com.bd/news-and-events/press-release/inauguration-of-ucb-taqwa-islamic-banking-window-of-united-commercial-bank-limited  (score 11.44)
+
+[Q132] What is the brand name for UCB Islamic Banking?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 21.29)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/welcome
+  BM25 top score : 21.288
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges United Commercial Bank Limited, one of the first generation private commercial Banks of th..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q133] What is Al-Wadia Current Account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.58)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit
+  BM25 top score : 18.583
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges Al-Wadia Current Account UCB TAQWA Al-Wadia Current Account is a specially designed deposi..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q134] What is the Shariah mode of Al-Wadia account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 26.65)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit
+  BM25 top score : 26.652
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges Al-Wadia Current Account UCB TAQWA Al-Wadia Current Account is a specially designed deposi..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q135] Who is eligible for Al-Wadia account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.37)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit
+  BM25 top score : 15.366
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges Al-Wadia Current Account UCB TAQWA Al-Wadia Current Account is a specially designed deposi..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q136] What is Mudaraba Savings Account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 13.75)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit/mudaraba-savings-account
+  BM25 top score : 13.753
+  What bot GETS  : "Ucb Taqwa Mudaraba Savings Account Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of Mudaraba Deposit Acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q137] What is Mudaraba Term Deposit?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.76)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit/mudaraba-monthly-income-term-deposit
+  BM25 top score : 15.757
+  What bot GETS  : "Ucb Taqwa Mudaraba Monthly Income Term Deposit Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of Mudaraba..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q138] How is profit calculated in Mudaraba accounts?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 20.78)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit/profit-mechanism-of-mudaraba-deposit-accounts
+  BM25 top score : 20.781
+  What bot GETS  : "Ucb Taqwa Profit Mechanism of Mudaraba Deposit Accounts Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q139] What is ISR in Islamic banking?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 12.00)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/welcome
+  BM25 top score : 11.999
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges United Commercial Bank Limited, one of the first generation private commercial Banks of th..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q140] What Islamic loan products does UCB offer?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 12.52)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/income-sharing-ratio-and-deposit
+  BM25 top score : 12.517
+  What bot GETS  : "Profit Mechanism of Mudaraba Deposit Accounts Income Sharing Ratio (ISR) and Deposit Rate Schedule of Charges Income Sharing Ratio (ISR) for UCB Taqwa Deposit Products UCB TAQWA profit bearing account..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: AYMA WOMEN BANKING
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q141] What is UCB AYMA?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 11.63)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-entrepreneur/jyoti
+  BM25 top score : 11.626
+  What bot GETS  : "UCB Ayma UCB Ayma Jyoti Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q142] Who is eligible for AYMA savings account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 17.10)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 17.102
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Ov..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q143] What is the minimum opening balance for AYMA savings in urban areas?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 19.92)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 19.921
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q144] What is the minimum opening balance for AYMA savings in rural areas?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 19.92)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  BM25 top score : 19.921
+  What bot GETS  : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q145] What loan products are available under AYMA?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.61)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 18.609
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Ov..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q146] What is UCB AYMA Dipti?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 20.24)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-entrepreneur/dipti
+  BM25 top score : 20.242
+  What bot GETS  : "UCB Ayma UCB Ayma Dipti Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q147] What is UCB AYMA Jyoti?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 20.32)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-entrepreneur/jyoti
+  BM25 top score : 20.325
+  What bot GETS  : "UCB Ayma UCB Ayma Jyoti Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q148] How many branches offer AYMA one-stop banking?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.68)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-services
+  BM25 top score : 15.679
+  What bot GETS  : "One stop service: Account opening, Credit Card Application, Retail & Entrepreneur Loan Application and other banking services in selected 10 (ten) Branches. Locker service: The Locker Service (Safe De..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q149] How many branches offer locker service under AYMA?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.80)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-services
+  BM25 top score : 14.801
+  What bot GETS  : "One stop service: Account opening, Credit Card Application, Retail & Entrepreneur Loan Application and other banking services in selected 10 (ten) Branches. Locker service: The Locker Service (Safe De..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q150] Does AYMA offer Sanchay Patra issuance?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.31)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-services
+  BM25 top score : 16.308
+  What bot GETS  : "One stop service: Account opening, Credit Card Application, Retail & Entrepreneur Loan Application and other banking services in selected 10 (ten) Branches. Locker service: The Locker Service (Safe De..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: SME/AGENT BANKING
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q151] What is Sonirvor Current Account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.61)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/sonirvor-current-account
+  BM25 top score : 14.609
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking Sonirvor Current Account: Current Ac..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q152] Who can open Sonirvor Current Account?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 13.97)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/sonirvor-current-account
+  BM25 top score : 13.968
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking Sonirvor Current Account: Current Ac..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q153] What interest does Sonirvor offer?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 8.97)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/sonirvor-current-account
+  BM25 top score : 8.970
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking Sonirvor Current Account: Current Ac..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q154] What agent banking services does UCB provide?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 14.26: https://www.ucb.com.bd/banking/agent-banking/about-agent-banking
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/sms-banking
+  BM25 top score : 14.565
+  What bot GETS  : "for the services under SMS Alert Facility (mentioned in the box above), if the mobile number of the customer is registered with UCB. 5. What is the Annual Fee for SMS Banking Servi..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Agent Banking About Agent Banking Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking About UCB Agent Banking Services Products Agent Outlets How to becom..."
+  Correct URL    : https://www.ucb.com.bd/banking/agent-banking/about-agent-banking  (score 14.26)
+
+[Q155] What are the daily cash deposit limits for savings account at agent banking?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 26.99)
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/charges-and-transaction-limits
+  BM25 top score : 26.987
+  What bot GETS  : "Agent Banking CHARGES AND TRANSACTION LIMITS Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking About UCB Agent Banking Services Products Agent Outlets H..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q156] What are the daily cash withdrawal limits for current account at agent banking?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 28.80)
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/charges-and-transaction-limits
+  BM25 top score : 28.800
+  What bot GETS  : "Agent Banking CHARGES AND TRANSACTION LIMITS Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking About UCB Agent Banking Services Products Agent Outlets H..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q157] What is the agent banking contact email?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 15.60)
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/agent-outlets
+  BM25 top score : 15.601
+  What bot GETS  : "Agent Banking Agent Outlets Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking About UCB Agent Banking Services Products Agent Outlets How to become an a..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q158] What school banking services are available through agent banking?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 16.77: https://www.ucb.com.bd/banking/agent-banking/about-agent-banking
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/sms-banking
+  BM25 top score : 17.603
+  What bot GETS  : "UCB believes in the convenience of Banking. We have come up with SMS Banking Services fulfilling the demand of modern banking trend. Get real-time banking information on your hand ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Agent Banking About Agent Banking Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking About UCB Agent Banking Services Products Agent Outlets How to becom..."
+  Correct URL    : https://www.ucb.com.bd/banking/agent-banking/about-agent-banking  (score 16.77)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: DIGITAL BANKING
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q159] What is UCB Unet?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 7.37: https://www.ucb.com.bd/unet-connect
+  Top chunk URL  : https://www.ucb.com.bd/FinancialLiteracy/digitalbanking
+  BM25 top score : 7.910
+  What bot GETS  : "প্রচলিত পদ্ধতিতে সরাসরি ব্যাংক কাউন্টারে না গিয়ে ডিজিটাল প্ল্যাটফর্ম এর সহায়তায় ডিজিটাল ডিভাইস ব্যবহার করে ব্যাংকিং সেবা গ্রহণ করাই ডিজিটাল ব্যাংকিং নামে পরিচিত। UCB বিভিন্ন ধরণ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Stay Home, Stay Safe! ! Your health and safety is our topmost priority. Use Internet Banking Unet anytime and from anywhere to avoid branch queue and use the power of convenience to manage your bankin..."
+  Correct URL    : https://www.ucb.com.bd/unet-connect  (score 7.37)
+
+[Q160] Does UCB offer corporate internet banking?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 11.73
+  Top chunk URL  : https://www.ucb.com.bd/cards/important-information
+  BM25 top score : 11.729
+  What bot GETS  : "Important Information Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditi..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q161] What is UCB upay?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 7.87
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 7.870
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q162] Can I do online transfers through UCB?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 16.06
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 16.062
+  What bot GETS  : "of any kind, damage or destruction tomachinery, equipment or records of Bank or any Rewards provider, actsof war or sabotage of any kind, any change in the laws, regulations or pol..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q163] What digital banking features does UCB offer?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 13.43
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/sms-banking
+  BM25 top score : 13.434
+  What bot GETS  : "UCB believes in the convenience of Banking. We have come up with SMS Banking Services fulfilling the demand of modern banking trend. Get real-time banking information on your hand ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q164] What is UCB's POS service?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 10.66)
+  Top chunk URL  : https://www.ucb.com.bd/pos-acquiring-service/e-commerce-online-payment-gateway
+  BM25 top score : 10.661
+  What bot GETS  : "POS Acquiring Service e-Commerce Online Payment Gateway Key Features NFC Based POS Terminal Dual SIM Based 3G POS Devices Real Time Online EMI on UCB POS e-Commerce Online Payment Gateway e-Commerce O..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q165] Is UCB's POS PCI-DSS certified?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 29.58)
+  Top chunk URL  : https://www.ucb.com.bd/pos-acquiring-service/key-features
+  BM25 top score : 29.583
+  What bot GETS  : "Dual SIM Based 3G POS Devices Real Time Online EMI on UCB POS e-Commerce Online Payment Gateway Key Features: NFC Based POS Terminal PCI-DSS Certified POS Terminal Easy Operation for end user Real Tim..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q166] Does UCB support NFC payments?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.36)
+  Top chunk URL  : https://www.ucb.com.bd/pos-acquiring-service/nfc-based-pos-terminal
+  BM25 top score : 16.360
+  What bot GETS  : "POS Acquiring Service NFC Based POS Terminal Key Features NFC Based POS Terminal Dual SIM Based 3G POS Devices Real Time Online EMI on UCB POS e-Commerce Online Payment Gateway NFC Based POS Terminal ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: RATES/CHARGES/CONTACT
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q167] Where can I find UCB's current deposit rates?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 11.76: https://www.ucb.com.bd/ucb-taqwa/deposit/profit-mechanism-of-mudaraba-deposit-accounts
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 13.017
+  What bot GETS  : "for 3 years from the date they are earned. 13. Where can I check my points balance? Your points balance will be shown on your monthly statement. 14. How do I redeem my points? You ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Ucb Taqwa Profit Mechanism of Mudaraba Deposit Accounts Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of..."
+  Correct URL    : https://www.ucb.com.bd/ucb-taqwa/deposit/profit-mechanism-of-mudaraba-deposit-accounts  (score 11.76)
+
+[Q168] Where can I find UCB's lending rates?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.07)
+  Top chunk URL  : https://www.ucb.com.bd/rates/interest-rates
+  BM25 top score : 14.074
+  What bot GETS  : "RATES PRODUCT RATES Product Rates Description View Download Deposit Rates (Conventional) View Download Deposit Rates (Islamic) View Download Lending Rates View Download"
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q169] How often are UCB's foreign exchange rates updated?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 19.84)
+  Top chunk URL  : https://www.ucb.com.bd/rates/fx-interest-rates
+  BM25 top score : 19.844
+  What bot GETS  : "RATES FOREIGN EXCHANGE RATES Foreign Exchange Rates Description Date View Download Exchange Rates 10-Mar-2026 View Download"
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q170] Where can I find UCB's schedule of charges?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 15.52
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  BM25 top score : 15.520
+  What bot GETS  : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legit..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q171] What is UCB's 24/7 call center number?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 14.88: https://www.ucb.com.bd/support/complaint-cell
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/24-7-customer-service
+  BM25 top score : 15.867
+  What bot GETS  : "Our Contact Centre is accessible in 24 hours a day, 7 days a week, 365 days a year, from anywhere in the world, which is designed to provide you one stop solution for your Credit C..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "01. 24 X 7 Call Center Service Call Center Agent Hotline for BD: 16419 Overseas: +88 096 100 16419 Overseas: +88 096 999 16419 02. Complaint Management Wing Abdul Ahad Mozumder PABX: +880-02 55668070 ..."
+  Correct URL    : https://www.ucb.com.bd/support/complaint-cell  (score 14.88)
+
+[Q172] What is the overseas call center number for UCB?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 18.47)
+  Top chunk URL  : https://www.ucb.com.bd/cards/card-features
+  BM25 top score : 18.475
+  What bot GETS  : "serve you and allow you to enjoy the benefits of your UCB Credit Card to the fullest. For any enquiry on your UCB Credit Card, simply call at the following numbers. 24 Hours Call Center: 16419( from w..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q173] What email can I use to send complaints to UCB?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 26.61
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 26.608
+  What bot GETS  : "for 3 years from the date they are earned. 13. Where can I check my points balance? Your points balance will be shown on your monthly statement. 14. How do I redeem my points? You ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q174] What is UCB cards division email?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 12.14: https://www.ucb.com.bd/support/contact-us
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 13.157
+  What bot GETS  : "for 3 years from the date they are earned. 13. Where can I check my points balance? Your points balance will be shown on your monthly statement. 14. How do I redeem my points? You ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "info@ucb. com. bd S. W. I. F. T UCBLBDDH INFORMATION TECHNOLOGY OPERATIONS DIVISION Bulus Center Plot - CWS- (A)-1 Road No - 34 Gulshan Avenue, Dhaka-1212 Phone +88-02-55668070 +88-09610999999 Fax +88..."
+  Correct URL    : https://www.ucb.com.bd/support/contact-us  (score 12.14)
+
+[Q175] Where is UCB's Chittagong zonal office contact?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 20.87)
+  Top chunk URL  : https://www.ucb.com.bd/support/complaint-cell
+  BM25 top score : 20.873
+  What bot GETS  : "01. 24 X 7 Call Center Service Call Center Agent Hotline for BD: 16419 Overseas: +88 096 100 16419 Overseas: +88 096 999 16419 02. Complaint Management Wing Abdul Ahad Mozumder PABX: +880-02 55668070 ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q176] Does UCB have locker services?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 11.44)
+  Top chunk URL  : https://www.ucb.com.bd/banking/sme-banking/locker-services
+  BM25 top score : 11.439
+  What bot GETS  : "UCB Agri & Rural Fast Loan (ARFL) UCB Term Loan (Agri & Rural) UCB Short Term Loan (Agri & Rural) UCB Time Loan (Agri & Rural) Services Locker Services SMS Banking Locker Services The Locker Service (..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q177] In how many branches is UCB locker service available?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 22.40)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/locker-services
+  BM25 top score : 22.402
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking UCB Student File Locker Services SMS Banking 24x7 Customer Service Locker Services The Locker Service ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q178] What is UCB's green banking initiative?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 8.39: https://www.ucb.com.bd/know-ucb/green-banking
+  Top chunk URL  : https://www.ucb.com.bd/news-and-events/press-release/united-commercial-bank-limited-launches-agent-banking
+  BM25 top score : 11.667
+  What bot GETS  : "United Commercial Bank Limited launches Agent Banking United Commercial Bank Limited (UCB) launched Agent Banking service on 1 February 2018 at Nawabgonj, Dhaka. Mr. Anisuzzaman Ch..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "of paper and saving time and work hour. The Bank has been giving emphasis on financing eco-friendly business activities and energy efficient industries like Effluent Treatment Plant. The Bank has rece..."
+  Correct URL    : https://www.ucb.com.bd/know-ucb/green-banking  (score 8.39)
+
+[Q179] What are UCB's CSR focus areas?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 12.81
+  Top chunk URL  : https://www.ucb.com.bd/know-ucb/corporate-social-responsibility
+  BM25 top score : 12.806
+  What bot GETS  : "United Commercial Bank PLC has a long history of associating itself in different spectrum of social responsibility and there are numerous glaring instances in which we can take pri..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q180] How many CSR focus areas does UCB have?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 10.90
+  Top chunk URL  : https://www.ucb.com.bd/learn-about-money/money-management-and-budgeting-tips
+  BM25 top score : 10.901
+  What bot GETS  : "Money Management and Budgeting Tips FOR STUDENTS Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of D..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q181] Does UCB publish sustainability reports?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 13.96)
+  Top chunk URL  : https://www.ucb.com.bd/sustainability
+  BM25 top score : 13.959
+  What bot GETS  : "Know UCB Sustainability Report Products & Services Sustainability Report Title Download Sustainability Report-2024 Sustainability Report-2023"
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: TRICKY/EDGE CASES
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q182] What is the difference between UCB Classic and UCB Gold credit card?
+  Verdict        : ⚠️  NOISE TOP-1
+  Note           : Top is noise chunk. Relevant chunk exists at score 21.29: https://www.ucb.com.bd/cards/card-features/protect-your-card
+  Top chunk URL  : https://www.ucb.com.bd/cards/reward-program-and-partners
+  BM25 top score : 24.899
+  What bot GETS  : "Currently there is no partner available. Currently there is no partner available. Sports World Rewards Value Reward Points 3,000 12,000 5,000 20,000 10,000 40,000 15,000 60,000 Cur..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Protect your Card Credit Card Choose your Credit Card Features Terms & Conditions Reward Program & Partners Safety Tips Card Security Documents Required Schedule of charges Important Information Card ..."
+  Correct URL    : https://www.ucb.com.bd/cards/card-features/protect-your-card  (score 21.29)
+
+[Q183] Can I withdraw cash from a Business Debit Card and how much?
+  Verdict        : ❌ WRONG CHUNK
+  Note           : Top chunk unrelated. Best score: 23.88
+  Top chunk URL  : https://www.ucb.com.bd/learn-about-money/banking-tips/age-limit
+  BM25 top score : 23.881
+  What bot GETS  : "Banking Tips How much should I borrow for my Home or Car? Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Bene..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : NOT FOUND IN DB — data likely not scraped
+
+[Q184] Is UEPFD partial encashment allowed?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.84)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/ucb-earning-plus-fixed-deposit-uepfd
+  BM25 top score : 14.838
+  What bot GETS  : "UCB Earning Plus Fixed Deposit (UEPFD) A Secure Investment that Guarantees Regular Return ! A steady source of income is imperative at all points in your life. At UCB, we understand this need for secu..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q185] What happens if I miss a Super Flex DPS installment?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 16.83: https://www.ucb.com.bd/learn-about-money/investment-tips/dps
+  Top chunk URL  : https://www.ucb.com.bd/learn-about-money/banking-tips/customer-segment
+  BM25 top score : 17.945
+  What bot GETS  : "Banking Tips Benefits of DPS Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of Direct Deposit How mu..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Investment Tips How to Invest DPS Banking Tips Benefits of Savings account Benefits and types of Deposit Premium Scheme (DPS) Credit Card VS Debit card Benefits of Direct Deposit How much should I bor..."
+  Correct URL    : https://www.ucb.com.bd/learn-about-money/investment-tips/dps  (score 16.83)
+
+[Q186] Can I open a prepaid card without a UCB bank account?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 20.06: https://www.ucb.com.bd/banking/retail-banking/prepaid-card
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/payroll-card/
+  BM25 top score : 22.631
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking Credit Card Choose your Credit Card Features Terms & Conditions Card Discount Part..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Features & Benefits of UCB International Prepaid Card: No need to open Bank account Limit will be as per Load Amount. Maximum limit is as per Bangladesh Bank guidelines issued from time to time which ..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/prepaid-card  (score 20.06)
+
+[Q187] What is the difference between Mudaraba and Al-Wadia accounts?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 31.45)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-taqwa/deposit/profit-mechanism-of-mudaraba-deposit-accounts
+  BM25 top score : 31.445
+  What bot GETS  : "Ucb Taqwa Profit Mechanism of Mudaraba Deposit Accounts Welcome Deposit Al-Wadia Current Account Mudaraba Savings Account Mudaraba Term Deposit Mudaraba Monthly Income Term Deposit Profit Mechanism of..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q188] Which card gives the most lounge companions internationally?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 11.61: https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-cards
+  Top chunk URL  : https://www.ucb.com.bd/imperial
+  BM25 top score : 12.441
+  What bot GETS  : "UCB Imperial is the preferred way of banking and reserved for the privileged few. It is about identifying your needs and making your wealth come alive through Returns, Rewards and ..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "BDT 20,000. Customer will have the option to pay as low as 5% of his outstanding as payment. Transaction alert for all approved & declined transactions. SMS Pull Service. Customer can issue cheque to ..."
+  Correct URL    : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-cards  (score 11.61)
+
+[Q189] What is the difference between NRB DPS Plus and Super Flex DPS?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 20.86: https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/products
+  BM25 top score : 28.369
+  What bot GETS  : "UCB Savings Plus Account (Special Savings Account) UCB Women Savings Accounts (Savings Account for Women) UCB NRB Savings Account (Savings Account for NRB) UCB Farmer’s Savings (Fa..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  Correct URL    : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps  (score 20.86)
+
+[Q190] Can a self-employed person get a UCB personal loan?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 30.49: https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-lending
+  BM25 top score : 32.018
+  What bot GETS  : "UCB AYMA AYMA Lending Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UC..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  Correct URL    : https://www.ucb.com.bd/banking/retail-banking/personal-loan  (score 30.49)
+
+[Q191] What is the minimum income for doctors applying for personal loan?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 23.03)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  BM25 top score : 23.034
+  What bot GETS  : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+──────────────────────────────────────────────────────────────────────────────────────────
+  CATEGORY: BANGLISH
+──────────────────────────────────────────────────────────────────────────────────────────
+
+[Q192] UCB er credit card er annual fee kivabe waive hobe?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 14.57)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-cards
+  BM25 top score : 14.569
+  What bot GETS  : "UCB AYMA AYMA Cards Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Over..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q193] Signature card e koto jon guest niye lounge e jawa jay?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.67)
+  Top chunk URL  : https://www.ucb.com.bd/cards
+  BM25 top score : 16.674
+  What bot GETS  : "Unsecured credit limit from BDT 20,000 – BDT 49,000 (global limit) EMV Compliant Contactless Dual Currency card 0% interest up to 24 months on EMI purchase at 450+ leading Merchants Annual fee waiver ..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q194] Personal loan er jonno ki ki documents lagbe?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 10.22)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/personal-loan
+  BM25 top score : 10.216
+  What bot GETS  : "Sometimes you just need a little help to enjoy your life at the fullest. UCB Personal Loan is there for you when you need that most. UCB Personal Loan can be availed for: Any legitimate personal finan..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q195] UCB DPS e ki loan pawa jay?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 10.50: https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/products
+  BM25 top score : 11.894
+  What bot GETS  : "UCB Savings Plus Account (Special Savings Account) UCB Women Savings Accounts (Savings Account for Women) UCB NRB Savings Account (Savings Account for NRB) UCB Farmer’s Savings (Fa..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "UCB AYMA AYMA DPS Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (SME Overdr..."
+  Correct URL    : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/dps  (score 10.50)
+
+[Q196] NRB account khulte ki ki documents lagbe?
+  Verdict        : ⚠️  WRONG TOP-1
+  Note           : Top chunk off-topic but relevant exists at score 6.30: https://www.ucb.com.bd/banking/nrb-banking
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/retail-fixed-deposit-exclusive
+  BM25 top score : 6.880
+  What bot GETS  : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking UCB Earning Plus FD UCB Money Maximizer Double Retail Fixed Deposit (Exclusive) Re..."  <-- WRONG/IRRELEVANT
+  What DB HAS    : "Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking NRB Banking NRB Banking UCB NRB SAVINGS UCB Probashi Savings Account (Uclick) UCB NRB DPS PLUS Locker ..."
+  Correct URL    : https://www.ucb.com.bd/banking/nrb-banking  (score 6.30)
+
+[Q197] UCB Islamic banking ki halal?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 10.69)
+  Top chunk URL  : https://www.ucb.com.bd/news-and-events/press-release/inauguration-of-ucb-taqwa-islamic-banking-window-of-united-commercial-bank-limited
+  BM25 top score : 10.688
+  What bot GETS  : "Inauguration of UCB Taqwa, Islamic Banking window of United Commercial Bank Limited Inauguration of UCB Taqwa, Islamic Banking window of United Commercial Bank Limited United Commercial Bank Limited (..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q198] Takapay card ki NPSB e use kora jay?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 11.90)
+  Top chunk URL  : https://www.ucb.com.bd/banking/retail-banking/debit-card
+  BM25 top score : 11.904
+  What bot GETS  : "You have safety and convenience with UCB Dual Currency Debit Card. With a wide network of UCB, VISA and Mastercard ATMs all over the world, you are now free to enjoy monetary freedom. You have the acc..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q199] Agent banking e ki account khola jay?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 9.37)
+  Top chunk URL  : https://www.ucb.com.bd/banking/agent-banking/forms-and-application
+  BM25 top score : 9.371
+  What bot GETS  : "Agent Banking FORMS AND APPLICATION Products & Services Retail Banking NRB Banking SME & Agri Banking Corporate Banking Agent Banking About UCB Agent Banking Services Products Agent Outlets How to bec..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+[Q200] UCB AYMA account er minimum balance koto?
+  Verdict        : ✅ CORRECT
+  Note           : Top chunk is relevant (score 16.26)
+  Top chunk URL  : https://www.ucb.com.bd/ucb-ayma/ayma-products/ayma-deposit/fixed-deposit
+  BM25 top score : 16.257
+  What bot GETS  : "UCB AYMA AYMA Fixed Deposit Know AYMA AYMA Products AYMA Deposit Savings Account Fixed Deposit DPS AYMA Lending AYMA Entrepreneur (All Deposit Products) UCB AYMA Dipti (SME Term Loan) UCB AYMA Jyoti (..."
+  What DB HAS    : (same — correct chunk retrieved)
+
+==========================================================================================
+SUMMARY
+==========================================================================================
+  Total questions : 200
+  PASS  ✅ CORRECT      : 114  (57%)
+  WARN  ⚠️  PARTIAL/WEAK : 68  (34%)
+  FAIL  ❌ WRONG/MISSING: 18  (9%)
+
+  BY CATEGORY:
+  Category                       Total     ✅    ⚠️     ❌
+  -------------------------------------------------------
+  General                           15     4     8     3
+  Savings/Deposits                  20    11     5     4
+  Credit Cards                      22    17     5     0
+  Debit Cards                       15    10     4     1
+  Prepaid Cards                      8     2     6     0
+  Loans                             20     9    11     0
+  NRB Banking                       10     3     6     1
+  Lounge Access                     11     6     5     0
+  Imperial Banking                   9     7     2     0
+  Islamic Banking                   10     9     1     0
+  AYMA Women Banking                10    10     0     0
+  SME/Agent Banking                  8     6     2     0
+  Digital Banking                    8     3     1     4
+  Rates/Charges/Contact             15     7     4     4
+  Tricky/Edge Cases                 10     3     6     1
+  Banglish                           9     7     2     0
+==========================================================================================

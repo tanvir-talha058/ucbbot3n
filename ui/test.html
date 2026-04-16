@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UCB Bank Bangladesh — Local Test Page</title>
+  <meta name="theme-color" content="#C8102E" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+  <style>
+    /* -----------------------------------------------------------------------
+       Simulated UCB Bank website for local widget testing
+       No server required — just open this file in a browser.
+       ----------------------------------------------------------------------- */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: #f5f5f5; }
+    body { min-height: 100dvh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f5f5f5; color: #222; line-height: 1.5; }
+
+    /* --- Navigation bar --- */
+    nav {
+      background: #C8102E;
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 16px;
+      min-height: 64px;
+      height: auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      position: sticky; top: 0; z-index: 100;
+      flex-wrap: wrap;
+    }
+    .nav-logo {
+      font-size: 22px; font-weight: 800; letter-spacing: 1px;
+      display: flex; align-items: center; gap: 10px;
+      min-width: 0;
+    }
+    .nav-logo span { font-size: 13px; opacity: 0.85; font-weight: 400; }
+    .nav-links { display: flex; gap: 24px; list-style: none; flex-wrap: wrap; }
+    .nav-links a { color: #fff; text-decoration: none; font-size: 14px; opacity: 0.9; }
+    .nav-links a:hover { opacity: 1; text-decoration: underline; }
+
+    /* Language switcher */
+    .lang-switcher {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .lang-btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff; border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .lang-btn:hover, .lang-btn.active { background: rgba(255,255,255,0.3); }
+
+    /* --- Hero --- */
+    .hero {
+      background: linear-gradient(135deg, #C8102E 0%, #8b0000 100%);
+      color: #fff; padding: 64px 32px;
+      text-align: center;
+    }
+    .hero h1 { font-size: clamp(30px, 5vw, 38px); font-weight: 800; margin-bottom: 12px; line-height: 1.1; }
+    .hero p  { font-size: 18px; opacity: 0.9; max-width: 600px; margin: 0 auto 28px; }
+    .hero-cta {
+      background: #fff; color: #C8102E;
+      border: none; border-radius: 8px; padding: 14px 32px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+    }
+
+    /* --- Main content --- */
+    .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+    h2 { font-size: 26px; color: #C8102E; margin-bottom: 20px; }
+    h3 { font-size: 18px; color: #333; margin-bottom: 8px; }
+
+    /* Products grid */
+    .products { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 48px; }
+    .product-card {
+      background: #fff; border-radius: 12px; padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-top: 4px solid #C8102E;
+    }
+    .product-card p { font-size: 14px; color: #555; margin-top: 8px; line-height: 1.5; }
+
+    /* Info sections */
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 48px; }
+    @media(max-width:600px){ .info-grid { grid-template-columns: 1fr; } }
+    .info-box { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .info-box p { font-size: 14px; color: #555; line-height: 1.65; margin-top: 8px; }
+
+    /* Contact */
+    .contact { background: #C8102E; color: #fff; border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 48px; }
+    .contact h2 { color: #fff; }
+    .contact p { margin-top: 10px; opacity: 0.9; }
+    .contact a { color: #ffd7d7; }
+
+    /* Footer */
+    footer { background: #1a1a1a; color: #aaa; text-align: center; padding: 20px; font-size: 13px; }
+    footer a { color: #C8102E; text-decoration: none; }
+
+    /* Test notice banner */
+    .test-banner {
+      background: #fff3cd; color: #856404; border: 1px solid #ffc107;
+      text-align: center; padding: 10px; font-size: 13px; font-weight: 500;
+    }
+
+    @media (max-width: 900px) {
+      nav {
+        align-items: flex-start;
+      }
+
+      .nav-links {
+        width: 100%;
+        gap: 12px 18px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .nav-logo span {
+        display: none;
+      }
+
+      .hero {
+        padding: 48px 20px;
+      }
+
+      .hero p {
+        font-size: 16px;
+      }
+
+      .container {
+        padding: 32px 20px;
+      }
+
+      .contact {
+        padding: 24px 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Test notice -->
+<div class="test-banner">
+  🧪 <strong>Local Test Page</strong> — This simulates the UCB Bank website. The chatbot widget in the bottom-right corner connects to
+  <code>http://localhost:8000</code>. Make sure the FastAPI server is running.
+</div>
+
+<!-- Navigation -->
+<nav>
+  <div class="nav-logo">
+    UCB <span>United Commercial Bank Bangladesh</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#">Personal</a></li>
+    <li><a href="#">Business</a></li>
+    <li><a href="#">Loans</a></li>
+    <li><a href="#">Deposits</a></li>
+    <li><a href="#">Cards</a></li>
+    <li><a href="#">Contact</a></li>
+  </ul>
+  <!-- Language switcher — changes the chatbot language -->
+  <div class="lang-switcher">
+    <button class="lang-btn active" onclick="setLang('english', this)">EN</button>
+    <button class="lang-btn" onclick="setLang('bangla', this)">বাং</button>
+    <button class="lang-btn" onclick="setLang('banglish', this)">BL</button>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <h1>Banking Made Simple</h1>
+  <p>UCB Bank Bangladesh — Your trusted financial partner since 1983. Serving over 1 million customers across Bangladesh.</p>
+  <button class="hero-cta">Open an Account</button>
+</div>
+
+<!-- Main content -->
+<div class="container">
+
+  <!-- Products -->
+  <h2>Our Products & Services</h2>
+  <div class="products">
+    <div class="product-card">
+      <h3>🏠 Home Loan</h3>
+      <p>Finance your dream home with UCB's competitive home loan starting from 9% per annum. Repayment up to 25 years.</p>
+    </div>
+    <div class="product-card">
+      <h3>🚗 Car Loan</h3>
+      <p>Drive your dream car with easy financing options. Up to 70% of vehicle value, repayable over 5 years.</p>
+    </div>
+    <div class="product-card">
+      <h3>💼 SME Loan</h3>
+      <p>Grow your business with SME loans up to BDT 50 crore. Flexible repayment and minimal documentation.</p>
+    </div>
+    <div class="product-card">
+      <h3>💳 Credit Card</h3>
+      <p>UCB Visa & Mastercard with up to 45 days interest-free period and reward points on every transaction.</p>
+    </div>
+    <div class="product-card">
+      <h3>📈 Fixed Deposit</h3>
+      <p>Earn up to 7.5% per annum on Fixed Deposits. Terms from 1 month to 5 years.</p>
+    </div>
+    <div class="product-card">
+      <h3>🌍 Foreign Exchange</h3>
+      <p>Competitive forex rates for remittance, import, export, and travel. 24/7 online forex booking.</p>
+    </div>
+  </div>
+
+  <!-- Info sections -->
+  <div class="info-grid">
+    <div class="info-box">
+      <h2>About UCB Bank</h2>
+      <p>United Commercial Bank Limited (UCB) is one of the leading private commercial banks in Bangladesh, incorporated in 1983. UCB provides a wide range of banking and financial services through its 200+ branches and 500+ ATMs nationwide.</p>
+      <p style="margin-top:12px;">The bank is committed to delivering digital-first banking experiences through UCB iBank (online banking) and UCB mCash (mobile banking).</p>
+    </div>
+    <div class="info-box">
+      <h2>Interest Rates</h2>
+      <p><strong>Savings Account:</strong> 3.0% – 4.0% p.a.</p>
+      <p><strong>Fixed Deposit (1 Year):</strong> 6.5% – 7.5% p.a.</p>
+      <p><strong>Personal Loan:</strong> 10% – 14% p.a.</p>
+      <p><strong>Home Loan:</strong> 9% – 11% p.a.</p>
+      <p><strong>Car Loan:</strong> 10% – 12% p.a.</p>
+      <p style="margin-top:8px;font-size:12px;color:#888;">Rates are indicative and subject to change. Please visit a branch for current rates.</p>
+    </div>
+  </div>
+
+  <!-- Bangla section for testing -->
+  <div class="info-box" style="margin-bottom:32px;">
+    <h2>UCB ব্যাংক সম্পর্কে</h2>
+    <p>ইউনাইটেড কমার্শিয়াল ব্যাংক লিমিটেড (UCB) বাংলাদেশের অন্যতম শীর্ষস্থানীয় বেসরকারি বাণিজ্যিক ব্যাংক। ১৯৮৩ সালে প্রতিষ্ঠিত এই ব্যাংক দেশের ২০০+ শাখা ও ৫০০+ এটিএমের মাধ্যমে ১০ লক্ষেরও বেশি গ্রাহককে সেবা দিয়ে আসছে।</p>
+    <p style="margin-top:10px;">UCB ব্যাংক ব্যক্তিগত, কর্পোরেট ও ক্ষুদ্র-মাঝারি উদ্যোক্তাদের জন্য বিভিন্ন ঋণ পণ্য ও আমানত সুবিধা প্রদান করে থাকে।</p>
+  </div>
+
+  <!-- Contact -->
+  <div class="contact">
+    <h2>Contact Us</h2>
+    <p>📍 Head Office: UCB Tower, 28 Gulshan Avenue, Dhaka 1212</p>
+    <p>📞 Call Center: 16419 &nbsp;|&nbsp; ✉️ <a href="mailto:info@ucb.com.bd">info@ucb.com.bd</a></p>
+    <p>🌐 <a href="https://www.ucb.com.bd" target="_blank">www.ucb.com.bd</a></p>
+  </div>
+
+</div>
+
+<!-- Footer -->
+<footer>
+  © 2024 United Commercial Bank Limited. All rights reserved. |
+  <a href="https://www.ucb.com.bd/privacy-policy" target="_blank">Privacy Policy</a> |
+  <a href="https://www.ucb.com.bd" target="_blank">ucb.com.bd</a>
+</footer>
+
+<!-- =========================================================
+     CHAT WIDGET — single script tag embed
+     ========================================================= -->
+<script src="/widget/chatbot.js"></script>
+
+<script>
+  /**
+   * Language switcher in the top-right nav.
+   * Sets the language dropdown inside the chat widget.
+   *
+   * @param {string} lang - "english" | "bangla" | "banglish"
+   * @param {HTMLElement} btn - The clicked button element
+   */
+  function setLang(lang, btn) {
+    // Update active class on nav buttons
+    document.querySelectorAll('.lang-btn').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+
+    // Update the widget's language selector if it exists
+    var widgetSelect = document.getElementById('ucb-lang-select');
+    if (widgetSelect) {
+      widgetSelect.value = lang;
+      widgetSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Also update sessionStorage directly
+    sessionStorage.setItem('ucb_lang', lang);
+  }
+</script>
+
+</body>
+</html>
